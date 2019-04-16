@@ -79,7 +79,7 @@ public class MainWindowController {
     }
 
     public void apply(EffectType effectType) throws Exception {
-        Image newImage;
+        Image newImage = null;
         if(effectType == EffectType.GREYSCALE)
             newImage = effectService.getGreyscale();
         else if(effectType == EffectType.CONTRAST)
@@ -97,10 +97,16 @@ public class MainWindowController {
         else if(effectType == EffectType.MEDIAN_FILTER) {
             newImage = effectService.getMedianFilter(getIntValue());
         }
+        else if(effectType == EffectType.SCALE)
+        {
+            if(getDoubleValue() != 0)
+                newImage = effectService.scale(getDoubleValue());
+        }
         else
             throw new Exception("Unrecognised effect selected");
 
-        resultImageView.setImage(newImage);
+        if(newImage != null)
+            resultImageView.setImage(newImage);
     }
 
     private int getIntValue() {
