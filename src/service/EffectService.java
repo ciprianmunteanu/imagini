@@ -252,6 +252,243 @@ public class EffectService {
         return SwingFXUtils.toFXImage(image, null);
     }
 
+    public Image contour(int cutoff) {
+        BufferedImage resultImage = getCountourAux(cutoff);
+
+        repo.setResultImage(resultImage);
+        return SwingFXUtils.toFXImage(resultImage, null);
+    }
+
+    private BufferedImage getCountourAux(int cutoff) {
+        BufferedImage image = repo.getSourceImage();
+
+        // a pixel is part of a margin if there is at least one neighbour pixel that is brighter by *cutoff*
+
+        cutoff *= 3; // so we dont't have to use divisions later
+
+        BufferedImage resultImage = new BufferedImage(image.getWidth(), image.getHeight(), image.getType());
+
+        for(int x = 1; x<image.getWidth()-1; ++x) { // we skip the border for simplicity
+            for(int y=1; y<image.getHeight()-1; ++y) {
+                Color c = new Color(image.getRGB(x, y));
+                int val = c.getRed() + c.getBlue() + c.getGreen();
+
+                boolean isMargin = false;
+
+                Color c1 = new Color(image.getRGB(x+1, y));
+                int val1 = c1.getRed() + c1.getGreen() + c1.getBlue();
+                if(val1 - val > cutoff)
+                    isMargin = true;
+
+                Color c2 = new Color(image.getRGB(x-1, y));
+                int val2 = c2.getRed() + c2.getGreen() + c2.getBlue();
+                if(val2 - val > cutoff)
+                    isMargin = true;
+
+                Color c3 = new Color(image.getRGB(x, y+1));
+                int val3 = c3.getRed() + c3.getGreen() + c3.getBlue();
+                if(val3 - val > cutoff)
+                    isMargin = true;
+
+                Color c4 = new Color(image.getRGB(x, y-1));
+                int val4 = c4.getRed() + c4.getGreen() + c4.getBlue();
+                if(val4 - val > cutoff)
+                    isMargin = true;
+
+                if(isMargin)
+                    resultImage.setRGB(x, y, Color.black.getRGB());
+                else
+                    resultImage.setRGB(x, y, Color.white.getRGB());
+            }
+        }
+
+        for(int x=0; x<image.getWidth(); ++x)
+        {
+            resultImage.setRGB(x, 0, Color.white.getRGB());
+            resultImage.setRGB(x, image.getHeight()-1, Color.white.getRGB());
+        }
+        for(int y=0; y<image.getHeight(); ++y)
+        {
+            resultImage.setRGB(0, y, Color.white.getRGB());
+            resultImage.setRGB(image.getWidth()-1, y, Color.white.getRGB());
+        }
+
+        return resultImage;
+    }
+
+    public Image skeleton (int cutoff) {
+        BufferedImage image = repo.getSourceImage();
+
+        BufferedImage resultImage = new BufferedImage(image.getWidth(), image.getHeight(), image.getType());
+
+        BufferedImage contourImg = getCountourAux(cutoff);
+
+        for(int x =1; x<image.getWidth()-1; ++x) {
+            for(int y=1; y<image.getHeight()-1; ++y) {
+                int min = getMinDist(contourImg, x, y);
+
+
+                if(min <= 0) { // we are outside of the object
+                    resultImage.setRGB(x, y, Color.white.getRGB());
+                }
+                else {
+                    int min1 = getMinDist(contourImg, x+1, y);
+                    int min2 = getMinDist(contourImg, x-1, y);
+                    int min3 = getMinDist(contourImg, x, y+1);
+                    int min4 = getMinDist(contourImg, x, y-1);
+
+                    int min5 = getMinDist(contourImg, x+1, y+1);
+                    int min6 = getMinDist(contourImg, x+1, y-1);
+                    int min7 = getMinDist(contourImg, x-1, y-1);
+                    int min8 = getMinDist(contourImg, x-1, y+1);
+
+                    if(min >= min1 && min >= min2 && min >= min3 && min >= min4 && min >= min5 && min >= min6 && min >= min7 && min >= min8)
+                    {
+                        resultImage.setRGB(x, y, Color.black.getRGB());
+                    }
+                    else {
+                        resultImage.setRGB(x, y, Color.white.getRGB());
+                    }
+                }
+            }
+        }
+
+        for(int x=0; x<image.getWidth(); ++x)
+        {
+            resultImage.setRGB(x, 0, Color.white.getRGB());
+            resultImage.setRGB(x, image.getHeight()-1, Color.white.getRGB());
+        }
+        for(int y=0; y<image.getHeight(); ++y)
+        {
+            resultImage.setRGB(0, y, Color.white.getRGB());
+            resultImage.setRGB(image.getWidth()-1, y, Color.white.getRGB());
+        }
+
+        repo.setResultImage(resultImage);
+        return SwingFXUtils.toFXImage(resultImage, null);
+    }
+
+
+    private int getMinDist(BufferedImage contourImg, int x, int y) {
+        int dist1 = skeletonDist(contourImg, x, y, 1, 0);
+        int dist2 = skeletonDist(contourImg, x, y, -1, 0);
+        int dist3 = skeletonDist(contourImg, x, y, 0, 1);
+        int dist4 = skeletonDist(contourImg, x, y, 0, -1);
+
+        int dist5 = skeletonDist(contourImg, x, y, 1, 1);
+        int dist6 = skeletonDist(contourImg, x, y, 1, -1);
+        int dist7 = skeletonDist(contourImg, x, y, -1, -1);
+        int dist8 = skeletonDist(contourImg, x, y, -1, 1);
+
+
+        List<Integer> distances = Arrays.asList(dist1, dist2, dist3, dist4, dist5, dist6, dist7, dist8);
+        Integer min = distances.stream().min(Integer::compareTo).get();
+        return min;
+    }
+
+    /**
+     * Finds the distance in the given direction (dx, dy)
+     * If no object is found in that direction, returns -1
+     * Otherwise, returns the distance
+     */
+    private int skeletonDist(BufferedImage image, int x, int y, int dx, int dy) {
+        int dist = 0;
+        boolean found = false;
+        while (x > 0 && y > 0 && x < image.getWidth() && y < image.getHeight()) {
+            Color c = new Color(image.getRGB(x, y));
+            if(c.getRed() == 0) // we hit an object
+            {
+                found = true;
+                break;
+            }
+            x += dx;
+            y += dy;
+            ++dist;
+        }
+
+        if(!found)
+            return -1;
+        return dist;
+    }
+    final int BLACK = Color.black.getRGB();
+
+
+    public Image thinning() {
+        // pentru fiecare pixel:
+        // daca are cel putin 2 vecini:
+        // vezi daca exsta vreo pereche de vecini care depinde de pixel ca sa creeze un drum
+
+        BufferedImage image = repo.getSourceImage();
+
+        for(int x=0; x<image.getWidth(); ++x)
+        {
+            image.setRGB(x, 0, Color.white.getRGB());
+            image.setRGB(x, image.getHeight()-1, Color.white.getRGB());
+        }
+        for(int y=0; y<image.getHeight(); ++y)
+        {
+            image.setRGB(0, y, Color.white.getRGB());
+            image.setRGB(image.getWidth()-1, y, Color.white.getRGB());
+        }
+
+
+        for(int x=1; x<image.getWidth()-1; ++x) {
+            for(int y=1; y<image.getHeight()-1;++y) {
+                if(getNrOfNeighbors(image, x, y) >= 2) {
+                    if(checkThinningContidions(image, x, y))
+                        image.setRGB(x, y, Color.white.getRGB());
+                }
+            }
+        }
+
+        for(int x=image.getWidth()-2; x>0; --x) {
+            for(int y=image.getHeight()-2; y>0;--y) {
+                if(getNrOfNeighbors(image, x, y) >= 2) {
+                    if(checkThinningContidions(image, x, y))
+                        image.setRGB(x, y, Color.white.getRGB());
+                }
+            }
+        }
+
+        repo.setResultImage(image);
+        return SwingFXUtils.toFXImage(image, null);
+    }
+
+    /**
+     * @return true if it can be eliminated
+     */
+    private boolean checkThinningContidions(BufferedImage image, int x, int y) {
+        if(image.getRGB(x-1, y) == BLACK && image.getRGB(x+1, y) == BLACK && image.getRGB(x, y-1) != BLACK && image.getRGB(x, y+1) != BLACK)
+            return false;
+        if(image.getRGB(x, y-1) == BLACK && image.getRGB(x, y+1) == BLACK && image.getRGB(x-1, y) != BLACK && image.getRGB(x+1, y) != BLACK)
+            return false;
+
+        if(image.getRGB(x, y-1) == BLACK && image.getRGB(x+1, y) == BLACK && image.getRGB(x+1,y-1) != BLACK)
+            return false;
+        if(image.getRGB(x, y-1) == BLACK && image.getRGB(x-1, y) == BLACK && image.getRGB(x-1,y-1) != BLACK)
+            return false;
+        if(image.getRGB(x, y+1) == BLACK && image.getRGB(x+1, y) == BLACK && image.getRGB(x+1,y+1) != BLACK)
+            return false;
+        if(image.getRGB(x, y+1) == BLACK && image.getRGB(x-1, y) == BLACK && image.getRGB(x-1,y+1) != BLACK)
+            return false;
+
+        return true;
+    }
+
+    private int getNrOfNeighbors(BufferedImage img, int x, int y) {
+        int nr = 0;
+
+        if(img.getRGB(x-1, y) == BLACK)
+            ++nr;
+        if(img.getRGB(x+1, y) == BLACK)
+            ++nr;
+        if(img.getRGB(x, y+1) == BLACK)
+            ++nr;
+        if(img.getRGB(x, y-1) == BLACK)
+            ++nr;
+        return nr;
+    }
+
     /**
      * Applies the given effect to each pixel of the image individually. Saves the new image in the repo and returns it.
      * @return the image after the effect was applied.

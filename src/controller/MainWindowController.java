@@ -102,6 +102,15 @@ public class MainWindowController {
             if(getDoubleValue() != 0)
                 newImage = effectService.scale(getDoubleValue());
         }
+        else if(effectType == EffectType.CONTOUR) {
+            newImage = effectService.contour(getIntValue());
+        }
+        else if(effectType == EffectType.SKELETON) {
+            newImage = effectService.skeleton(getIntValue());
+        }
+        else if(effectType == EffectType.THINNING) {
+            newImage = effectService.thinning();
+        }
         else
             throw new Exception("Unrecognised effect selected");
 
