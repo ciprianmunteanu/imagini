@@ -431,12 +431,24 @@ public class EffectService {
             image.setRGB(image.getWidth()-1, y, Color.white.getRGB());
         }
 
+        boolean[][] wasDeleted = new boolean[image.getWidth()][image.getHeight()];
+        for(int i=0; i<image.getWidth(); ++i) {
+            for (int j=0; j<image.getHeight(); ++j) {
+                wasDeleted[i][j] = false;
+            }
+        }
 
         for(int x=1; x<image.getWidth()-1; ++x) {
             for(int y=1; y<image.getHeight()-1;++y) {
-                if(getNrOfNeighbors(image, x, y) >= 2) {
+                int nrOfNeighbors = getNrOfNeighbors(image, x, y);
+                if(wasDeleted[x][y-1])
+                    ++nrOfNeighbors;
+                if(nrOfNeighbors >= 2) {
                     if(checkThinningContidions(image, x, y))
+                    {
                         image.setRGB(x, y, Color.white.getRGB());
+                        wasDeleted[x][y]=true;
+                    }
                 }
             }
         }
