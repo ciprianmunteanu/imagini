@@ -1,13 +1,18 @@
 package service;
 
+import domain.LensFlareCoords;
 import domain.PixelInfoDto;
+import domain.Point;
 import domain.SinglePixelEffect;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.image.Image;
 import repo.TwoImageRepo;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -36,6 +41,50 @@ public class EffectService {
 
     public EffectService(TwoImageRepo repo) {
         this.repo = repo;
+    }
+
+    public Image getLensFlare(LensFlareCoords coords) throws IOException {
+        BufferedImage sourceImage = repo.getSourceImage();
+        // base scale is calculated for a 600x600 image. We need to scale based on min(width, height) of the source image
+        int min = min(sourceImage.getHeight(), sourceImage.getWidth());
+        double scale = (double)min / 600;
+
+        BufferedImage rainbow = getScaledSourceImage("lens/Lens_Rainbow.png", scale);
+        BufferedImage sun = getScaledSourceImage("lens/Lens_Sun.png", scale);
+        BufferedImage greenCircle1 = getScaledSourceImage("lens/Lens_GreenCircle.png", scale);
+        BufferedImage greenCircle2 = getScaledSourceImage("lens/Lens_GreenCircle2.png", scale);
+        BufferedImage greenCircle3 = getScaledSourceImage("lens/Lens_GreenCircle3.png", scale);
+        BufferedImage purpleCircle = getScaledSourceImage("lens/Lens_PurpleCircle.png", scale);
+        BufferedImage specular = getScaledSourceImage("lens/Lens_Specular.png", scale);
+
+        BufferedImage resultImage = new BufferedImage(sourceImage.getWidth(), sourceImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics g = resultImage.getGraphics();
+        g.drawImage(sourceImage, 0, 0, null);
+
+        Point sunPosition = getLensEffectPosition(coords, 0, sun);
+        g.drawImage(sun, sunPosition.x, sunPosition.y, null);
+
+        Point greenCircle1Pos = getLensEffectPosition(coords, 1.9, greenCircle1);
+        g.drawImage(greenCircle1, greenCircle1Pos.x, greenCircle1Pos.y, null);
+
+        Point specularPos = getLensEffectPosition(coords, 1.25, specular);
+        g.drawImage(specular, specularPos.x, specularPos.y, null);
+
+        Point greenCircle2Pos = getLensEffectPosition(coords, 1.35, greenCircle2);
+        g.drawImage(greenCircle2, greenCircle2Pos.x, greenCircle2Pos.y, null);
+
+        Point greenCirlce3Pos = getLensEffectPosition(coords, 0.75, greenCircle3);
+        g.drawImage(greenCircle3, greenCirlce3Pos.x, greenCirlce3Pos.y, null);
+
+        Point purpleCirclePos = getLensEffectPosition(coords, 0.4, purpleCircle);
+        g.drawImage(purpleCircle, purpleCirclePos.x, purpleCirclePos.y, null);
+
+        Point rainbowPos = getLensEffectPosition(coords, 2, rainbow);
+        g.drawImage(rainbow, rainbowPos.x, rainbowPos.y, null);
+
+        repo.setResultImage(resultImage);
+
+        return SwingFXUtils.toFXImage(resultImage, null);
     }
 
     public Image getGreyscale () {
@@ -97,13 +146,15 @@ public class EffectService {
     }
 
     public Image scale(double ratio) {
-        if(ratio < 1)
-            return scaleNegatively(ratio);
-        return scalePositively(ratio);
+        BufferedImage originalImage = repo.getSourceImage();
+        BufferedImage resultImage = scaleAux(originalImage, ratio);
+
+        repo.setResultImage(resultImage);
+
+        return SwingFXUtils.toFXImage(resultImage, null);
     }
 
-    private Image scalePositively(double ratio) {
-        BufferedImage originalImage = repo.getSourceImage();
+    private BufferedImage scalePositively(BufferedImage originalImage, double ratio) {
 
         int resX = (int)(originalImage.getWidth()*ratio)+1;
         int resY = (int)(originalImage.getHeight()*ratio)+1;
@@ -172,14 +223,11 @@ public class EffectService {
             y += nrToInterpolateY + 1;
         }
 
-        repo.setResultImage(resultImage);
-
-        return SwingFXUtils.toFXImage(resultImage, null);
+        return resultImage;
     }
 
-    private Image scaleNegatively(double ratio) {
+    private BufferedImage scaleNegatively(BufferedImage originalImage, double ratio) {
         double invRatio = 1/ratio;
-        BufferedImage originalImage = repo.getSourceImage();
 
         int resX = (int)(originalImage.getWidth()*ratio)-1;
         int resY = (int)(originalImage.getHeight()*ratio)-1;
@@ -194,9 +242,13 @@ public class EffectService {
             }
         }
 
-        repo.setResultImage(resultImage);
+        return resultImage;
+    }
 
-        return SwingFXUtils.toFXImage(resultImage, null);
+    private BufferedImage scaleAux(BufferedImage source, double ratio) {
+        if(ratio < 1)
+            return scaleNegatively(source, ratio);
+        return scalePositively(source, ratio);
     }
 
     public Image getMedianFilter(int windowSize) throws Exception {
@@ -532,5 +584,56 @@ public class EffectService {
             return 0;
 
         return val;
+    }
+
+    /**
+     * Converts a given Image into a BufferedImage
+     *
+     * @param img The Image to be converted
+     * @return The converted BufferedImage
+     */
+    private static BufferedImage toBufferedImage(java.awt.Image img)
+    {
+        if (img instanceof BufferedImage)
+        {
+            return (BufferedImage) img;
+        }
+
+        // Create a buffered image with transparency
+        BufferedImage bimage = new BufferedImage(img.getWidth(null), img.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+
+        // Draw the image on to the buffered image
+        Graphics2D bGr = bimage.createGraphics();
+        bGr.drawImage(img, 0, 0, null);
+        bGr.dispose();
+
+        // Return the buffered image
+        return bimage;
+    }
+
+    private BufferedImage getScaledSourceImage(String path, double scale) throws IOException {
+        BufferedImage aux = ImageIO.read(new File(path));
+        BufferedImage res = toBufferedImage(aux.getScaledInstance((int)(aux.getWidth() * scale), (int)(aux.getHeight() * scale), 0));
+        return res;
+    }
+
+    /**
+     *
+     * @param coords
+     * @param dist - [0,1] - how close it is to the sun: 0 = inside the sun, 1 = in the center, 2 = symmetric to the sun
+     * @return
+     */
+    private Point getLensEffectPosition(LensFlareCoords coords, double dist, BufferedImage img) {
+        int diffX = coords.center.x - coords.sun.x;
+        int diffY  = coords.center.y - coords.sun.y;
+
+        int x = (int) (coords.sun.x + diffX * dist);
+        int y = (int) (coords.sun.y + diffY * dist);
+
+        Point res = new Point();
+        res.x = x - img.getWidth()/2;
+        res.y = y - img.getHeight()/2;
+
+        return res;
     }
 }

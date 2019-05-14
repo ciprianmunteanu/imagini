@@ -1,7 +1,7 @@
 package controller;
 
-import com.sun.scenario.effect.Effect;
 import domain.EffectType;
+import domain.LensFlareCoords;
 import javafx.fxml.FXML;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.TextField;
@@ -13,6 +13,7 @@ import service.ImageService;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import java.io.IOException;
 
 public class MainWindowController {
     private ImageService imageService;
@@ -28,6 +29,9 @@ public class MainWindowController {
     public ChoiceBox<EffectType> effectSelectBox;
 
     @FXML
+    public TextField coordsField;
+
+    @FXML
     private void initialize() {
         TwoImageRepo repo = new TwoImageRepo();
         imageService = new ImageService(repo);
@@ -36,6 +40,7 @@ public class MainWindowController {
         effectSelectBox.getSelectionModel().select(0);
 
         valueInput.textProperty().addListener((observable, oldValue, newValue) -> onTextChanged(oldValue, newValue));
+        coordsField.textProperty().addListener((observable, oldValue, newValue) -> onCoordsChanged(oldValue, newValue));
         effectSelectBox.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
             try {
                 apply(newValue);
@@ -111,6 +116,9 @@ public class MainWindowController {
         else if(effectType == EffectType.THINNING) {
             newImage = effectService.thinning();
         }
+        else if(effectType == EffectType.LENS_FLARE) {
+            newImage = effectService.getLensFlare(getLensFlareCoords());
+        }
         else
             throw new Exception("Unrecognised effect selected");
 
@@ -153,5 +161,27 @@ public class MainWindowController {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void onCoordsChanged(String oldValue, String newValue) {
+        if(!effectSelectBox.getSelectionModel().selectedItemProperty().get().equals(EffectType.LENS_FLARE))
+            return;
+
+        try {
+            resultImageView.setImage(effectService.getLensFlare(getLensFlareCoords()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private LensFlareCoords getLensFlareCoords() {
+        String text = coordsField.getText();
+        String[] split = text.split(",");
+        LensFlareCoords res = new LensFlareCoords();
+        res.center.x = Integer.parseInt(split[0]);
+        res.center.y = Integer.parseInt(split[1]);
+        res.sun.x = Integer.parseInt(split[2]);
+        res.sun.y = Integer.parseInt(split[3]);
+        return res;
     }
 }
