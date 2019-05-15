@@ -38,6 +38,10 @@ public class TwoImageRepo {
         return getCopy(sourceImage);
     }
 
+    public BufferedImage getResultImage() {
+        return resultImage;
+    }
+
     public void setResultImage(BufferedImage resultImage) {
         this.resultImage = resultImage;
     }

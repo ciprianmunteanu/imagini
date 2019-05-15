@@ -44,7 +44,9 @@ public class EffectService {
     }
 
     public Image getLensFlare(LensFlareCoords coords) throws IOException {
-        BufferedImage sourceImage = repo.getSourceImage();
+        getContrastEdit(-16);
+        BufferedImage sourceImage = repo.getResultImage();
+
         // base scale is calculated for a 600x600 image. We need to scale based on min(width, height) of the source image
         int min = min(sourceImage.getHeight(), sourceImage.getWidth());
         double scale = (double)min / 600;
